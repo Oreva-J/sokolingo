@@ -1,9 +1,91 @@
-:root {
-  --font-display:
-    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
-    Segoe UI Symbol, Noto Color Emoji;
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-  --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
-  --font-serif: Georgia, 'Times New Roman', serif;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
+
+@import "nativewind/theme";
+
+@theme {
+  --color-purple: #6c4ef5;
+  --color-deep-purple: #5b3bf6;
+  --color-blue: #4d8bff;
+  --color-green: #21c16b;
+  --color-success: #21c16b;
+  --color-warning: #ffc800;
+  --color-streak: #ff8a00;
+  --color-error: #ff4d4f;
+  --color-info: #4d8bff;
+  --color-text-primary: #0d132b;
+  --color-text-secondary: #6b7280;
+  --color-border: #e5e7eb;
+  --color-surface: #f6f7fb;
+  --color-background: #ffffff;
+
+  --font-poppins: Poppins;
+  --font-poppins-medium: Poppins-Medium;
+  --font-poppins-semibold: Poppins-SemiBold;
+  --font-poppins-bold: Poppins-Bold;
+
+  --radius-card: 16px;
+  --radius-control: 12px;
+  --radius-pill: 999px;
+}
+
+@utility h1 {
+  font-family: Poppins-Bold;
+  font-size: 32px;
+  line-height: 38px;
+}
+
+@utility h2 {
+  font-family: Poppins-SemiBold;
+  font-size: 24px;
+  line-height: 31px;
+}
+
+@utility h3 {
+  font-family: Poppins-SemiBold;
+  font-size: 20px;
+  line-height: 26px;
+}
+
+@utility h4 {
+  font-family: Poppins-Medium;
+  font-size: 16px;
+  line-height: 22px;
+}
+
+@utility body-large {
+  font-family: Poppins;
+  font-size: 16px;
+  line-height: 26px;
+}
+
+@utility body-medium {
+  font-family: Poppins;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+@utility body-small {
+  font-family: Poppins;
+  font-size: 13px;
+  line-height: 21px;
+}
+
+@utility caption {
+  font-family: Poppins;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+@utility screen {
+  flex: 1;
+  background-color: var(--color-background);
+}
+
+@utility surface-card {
+  border-radius: var(--radius-card);
+  border-width: 1px;
+  border-color: var(--color-border);
+  background-color: var(--color-background);
 }
