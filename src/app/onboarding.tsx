@@ -1,5 +1,6 @@
+import { useAuth } from "@clerk/expo";
 import { Image } from "expo-image";
-import { Link } from "expo-router";
+import { Link, Redirect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -7,8 +8,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { images } from "@/constants/images";
 
 export default function Onboarding() {
+  const { isLoaded, isSignedIn } = useAuth();
   const { width, height } = useWindowDimensions();
   const mascotSize = Math.min(width * 0.74, height * 0.32, 310);
+
+  if (!isLoaded) {
+    return null;
+  }
+
+  if (isSignedIn) {
+    return <Redirect href="/" />;
+  }
 
   return (
     <SafeAreaView

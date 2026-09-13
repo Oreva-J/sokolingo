@@ -1,3 +1,4 @@
+import { useAuth, useClerk, useSignIn, useSignUp, useSSO } from "@clerk/expo";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -24,17 +25,190 @@ type AuthScreenProps = {
 };
 
 const socialOptions = [
-  { label: "Continue with Google", icon: "G", iconClass: "text-[#4285F4]" },
-  { label: "Continue with Facebook", icon: "f", iconClass: "text-[#1877F2]" },
-  { label: "Continue with Apple", icon: "", iconClass: "text-text-primary" },
+  {
+    label: "Continue with Google",
+    icon: "G",
+    iconClass: "text-[#4285F4]",
+    strategy: "oauth_google",
+  },
+  {
+    label: "Continue with Facebook",
+    icon: "f",
+    iconClass: "text-[#1877F2]",
+    strategy: "oauth_facebook",
+  },
+  {
+    label: "Continue with Apple",
+    icon: "",
+    iconClass: "text-text-primary",
+    strategy: "oauth_apple",
+  },
 ] as const;
 
 export function AuthScreen({ mode }: AuthScreenProps) {
   const router = useRouter();
+  const { isLoaded, isSignedIn } = useAuth();
+  const { setActive } = useClerk();
+  const { signIn } = useSignIn();
+  const { signUp } = useSignUp();
+  const { startSSOFlow } = useSSO();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isVerificationVisible, setVerificationVisible] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const isSignUp = mode === "sign-up";
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.replace("/");
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  const handleEmailFlow = async () => {
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail) {
+      setErrorMessage("Please enter your email address.");
+      return;
+    }
+
+    if (isSignUp && !password) {
+      setErrorMessage("Please create a password.");
+      return;
+    }
+
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    try {
+      if (isSignUp) {
+        const createResult = await signUp.create({
+          emailAddress: normalizedEmail,
+          password,
+        });
+        if (createResult.error) {
+          throw new Error(createResult.error.message);
+        }
+
+        const codeResult = await signUp.verifications.sendEmailCode();
+        if (codeResult.error) {
+          throw new Error(codeResult.error.message);
+        }
+      } else {
+        const createResult = await signIn.create({
+          identifier: normalizedEmail,
+        });
+        if (createResult.error) {
+          throw new Error(createResult.error.message);
+        }
+
+        const codeResult = await signIn.emailCode.sendCode({
+          emailAddress: normalizedEmail,
+        });
+        if (codeResult.error) {
+          throw new Error(codeResult.error.message);
+        }
+      }
+
+      setVerificationVisible(true);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "We could not start the verification flow. Please try again.";
+      setErrorMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyCode = async (code: string) => {
+    if (!code || code.length !== 6) {
+      return;
+    }
+
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    try {
+      if (isSignUp) {
+        const result = await signUp.verifications.verifyEmailCode({ code });
+
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
+
+        if (!signUp.createdSessionId) {
+          const missingFields = signUp.missingFields.join(", ");
+          throw new Error(
+            missingFields
+              ? `Email verified, but Clerk still requires: ${missingFields.replaceAll("_", " ")}. Enable passwordless email sign-up in the Clerk Dashboard or add those fields to this form.`
+              : "Email verified, but Clerk did not create a session. Check your Clerk sign-up settings.",
+          );
+        }
+
+        const finalizeResult = await signUp.finalize();
+        if (finalizeResult.error) {
+          throw new Error(finalizeResult.error.message);
+        }
+      } else {
+        const result = await signIn.emailCode.verifyCode({ code });
+
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
+
+        if (!signIn.createdSessionId) {
+          throw new Error(
+            "Your code was accepted, but Clerk did not create a session. Complete any additional sign-in verification and try again.",
+          );
+        }
+
+        const finalizeResult = await signIn.finalize();
+        if (finalizeResult.error) {
+          throw new Error(finalizeResult.error.message);
+        }
+      }
+
+      router.replace("/");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "The verification code is invalid. Please try again.";
+      setErrorMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSocialAuth = async (
+    strategy: (typeof socialOptions)[number]["strategy"],
+  ) => {
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    try {
+      const result = await startSSOFlow({
+        strategy,
+      });
+
+      if (result.createdSessionId) {
+        await setActive({ session: result.createdSessionId });
+        router.replace("/");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Social sign-in could not be completed. Please try again.";
+      setErrorMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
@@ -97,18 +271,49 @@ export function AuthScreen({ mode }: AuthScreenProps) {
             />
           </View>
 
+          {isSignUp ? (
+            <View className="h-[112px] justify-center rounded-[20px] border border-[#E5E7EB] px-6">
+              <Text className="font-poppins text-[14px] leading-[20px] text-text-secondary">
+                Password
+              </Text>
+              <TextInput
+                autoCapitalize="none"
+                autoComplete="password"
+                onChangeText={setPassword}
+                placeholder="Create a password"
+                placeholderTextColor="#0D132B"
+                secureTextEntry
+                style={styles.input}
+                value={password}
+              />
+            </View>
+          ) : null}
+
           <Pressable
             accessibilityRole="button"
-            onPress={() => setVerificationVisible(true)}
+            disabled={isSubmitting}
+            onPress={handleEmailFlow}
             style={({ pressed }) => [
               styles.primaryButton,
-              pressed && styles.pressed,
+              (pressed || isSubmitting) && styles.pressed,
             ]}
           >
             <Text className="font-poppins-semibold text-[20px] text-white">
-              {isSignUp ? "Sign Up" : "Sign In"}
+              {isSubmitting
+                ? isSignUp
+                  ? "Signing Up..."
+                  : "Signing In..."
+                : isSignUp
+                  ? "Sign Up"
+                  : "Sign In"}
             </Text>
           </Pressable>
+
+          {errorMessage ? (
+            <Text className="font-poppins text-[13px] leading-[18px] text-[#D12727]">
+              {errorMessage}
+            </Text>
+          ) : null}
         </View>
 
         <View className="mt-[38px] flex-row items-center gap-5">
@@ -123,10 +328,12 @@ export function AuthScreen({ mode }: AuthScreenProps) {
           {socialOptions.map((option) => (
             <Pressable
               accessibilityRole="button"
+              disabled={isSubmitting}
               key={option.label}
+              onPress={() => void handleSocialAuth(option.strategy)}
               style={({ pressed }) => [
                 styles.socialButton,
-                pressed && styles.pressed,
+                (pressed || isSubmitting) && styles.pressed,
               ]}
             >
               <Text
@@ -157,36 +364,37 @@ export function AuthScreen({ mode }: AuthScreenProps) {
 
       <VerificationModal
         email={email}
+        isSubmitting={isSubmitting}
         key={
           isVerificationVisible ? "verification-open" : "verification-closed"
         }
         onClose={() => setVerificationVisible(false)}
+        onVerify={handleVerifyCode}
         visible={isVerificationVisible}
       />
+      <View nativeID="clerk-captcha" />
     </SafeAreaView>
   );
 }
 
 type VerificationModalProps = {
   email: string;
+  isSubmitting: boolean;
   onClose: () => void;
+  onVerify: (code: string) => Promise<void>;
   visible: boolean;
 };
 
 function VerificationModal({
   email,
+  isSubmitting,
   onClose,
+  onVerify,
   visible,
 }: VerificationModalProps) {
-  const router = useRouter();
   const codeInputRef = useRef<TextInput>(null);
+  const submittedCodeRef = useRef<string | null>(null);
   const [code, setCode] = useState("");
-
-  useEffect(() => {
-    if (code.length === 6) {
-      router.replace("/");
-    }
-  }, [code, router]);
 
   useEffect(() => {
     if (!visible) {
@@ -196,6 +404,20 @@ function VerificationModal({
     const focusTimer = setTimeout(() => codeInputRef.current?.focus(), 150);
     return () => clearTimeout(focusTimer);
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible || code.length !== 6) {
+      submittedCodeRef.current = null;
+      return;
+    }
+
+    if (isSubmitting || submittedCodeRef.current === code) {
+      return;
+    }
+
+    submittedCodeRef.current = code;
+    void onVerify(code);
+  }, [code, isSubmitting, onVerify, visible]);
 
   return (
     <Modal
